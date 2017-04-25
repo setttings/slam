@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>15418 Final Project</title>
+
+	<!--Import Google Icon Font-->
+	
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+	<script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <link href="http://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  	<link rel="stylesheet" href="css/materialize.min.css">
+    <link rel="stylesheet" href="css/style.css">
+  	<script src="js/materialize.min.js"></script>
+
+</head>
+
+<body>
+	<nav>
+    <div class="nav-wrapper amanda-navbar">
+      <a href="#" class="brand-logo">&nbsp;&nbsp;15-418 Final Project</a>
+      <ul id="nav-mobile" class="right hide-on-med-and-down">
+        <li><a href="#about">Proposal</a></li>
+        <li><a href="#checkpoint">Checkpoint</a></li>
+        <li><a href="#final">Final Write Up</a></li>
+        <li><a href="http://www.github.com">Code</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div id ="fullpage" class="container left-align">
+  	<div class="section">
+  	 <h3>Proposal</h3>
+     <h5>Parallel Simultaneous Localization and Mapping (SLAM) with Lidars</h5>
+     <p>Adriel Luo and Amanda Eng</p>
+     <h5>Summary</h5>
+     <p>We are going to implement lidar mapping, an algorithm for doing SLAM with lidars, with parallelism so that it runs faster.</p>
+     <h5>Background</h5>
+     <p>Simultaneous localization and mapping (SLAM) is the problem of constructing or updating a map of an unknown environment while simultaneously keeping track of an agent's location within it. With the growing popularity of self-driving cars, lidars are ubiquitous as a means of mapping the environment and localizing.</p>
+
+      <p>A lidar sensor sends out many laser beams to generate a point cloud that enables the computation of the distance to surrounding objects.  These point clouds represent the surrounding environment, such as in the image below.  However, a point cloud is only conveys information at a specific time.  To determine one’s movement, a sequence of point clouds are generated over time.  The lidar mapping algorithm we intend to parallelize for this project finds the differences between these point clouds to determine one’s movement and relative position over time.</p>
+
+      <img src="img/img1.png" width="40%" height="40%">
+
+      <p>Lidar mapping is an algorithm that is used to perform SLAM with lidars. The general algorithm that is repeated with every new point cloud is as follows:</p>
+
+      <img src="img/img2.png" width="60%" height="60%">
+
+      <h5>Challenge</h5>
+      <p>
+        There are many opportunities for parallelism in this algorithm. The insertion of points into the k-d tree is an interesting problem. Points in a point cloud can be worked on in parallel. Parallelism could be achieved with threads, or with vector instructions.
+      </p>
+
+      <p>
+        The insertion of points into the k-d tree is challenging because it involves multiple threads trying to modify the data structure concurrently. It would also be challenging because we are going against PCL’s highly-optimized sequential implementation of a k-d tree.
+      </p>
+
+      <h5>Resources</h5>
+      <p>
+        <a href="http://www.roboticsproceedings.org/rss10/p07.pdf">Original publication describing algorithm </a>
+      </p>
+      <p>
+        <a href="https://github.com/laboshinl/loam_velodyne">Starter code</a>
+      </p>
+      <p>
+        <a href="http://www.pointclouds.org/">Point Cloud Library </a>
+      </p>
+      <p>
+        <a href=" https://en.wikipedia.org/wiki/K-d_tree">K-d tree </a>
+      </p>
+      <p>
+        <a href="http://velodynelidar.com/downloads.html">Point cloud datasets</a>
+      </p>
+      
+      <h5>Goals</h5>
+      <h6>Plan to Achieve</h6>
+
+      <ul class="collapsible">
+        <li class="collection-item">
+          <div class="collapsible-header"><b>Correct algorithm</b></div>
+          <div class="collapsible-body">
+            At the very least, the algorithm should be correct. It should build a reasonable map and give a reasonable estimate of one’s position. Correctness should be obvious. The map built will either be reasonable (point clouds from consecutive frames overlap) or very wrong (map built is nonsensical, position estimate is always zero etc).</div>
+        </li>
+
+        <li class="collection-item">
+          <div class="collapsible-header"><b>3x speedup over sequential algorithm</b></div>
+          <div class="collapsible-body">
+            This conservative estimate comes from the fact that our computers have two hyperthreaded cores and that we won’t be able to parallelizing the entire algorithm. We might be able to get more than this with SIMD programming.
+          </div>
+        </li>
+      </ul>
+      <br>
+      <h6>Hope to Achieve</h6>
+
+      <ul class="collapsible">
+        <li class="collection-item">
+          <div class="collapsible-header"><b>Speedup fast enough to run the algorithm in real-time</b></div>
+          <div class="collapsible-body">
+            The exact speedup required depends on how long the sequential algorithm takes. To achieve real-time capabilities, the algorithm must be able to process 10 point clouds per second (this is the frequency at which point clouds come in). This means that if every iteration of the sequential algorithm takes 1 second to run, we need a 10x speedup for the algorithm to run in full-time.</div>
+        </li>
+
+        <li class="collection-item">
+          <div class="collapsible-header"><b>Parallel construction of/insertion into the k-d K-d_tree</b></div>
+          <div class="collapsible-body">
+            We foresee that this will be challenging, as with all concurrent data structure implementations.
+          </div>
+        </li>
+      </ul>
+
+      <h5>Deliverables</h5>
+        <p>Video of map built and position computed</p>
+        <p>Speedup vs parallelism technique (threads, SIMD etc.)</p>
+
+      <h5>Platform Choice</h5>
+      <p>Macbook: The algorithm should be able to run off an average laptop and not require dedicated hardware. More importantly, it should run on laptop-sized computers because you want the algorithm to be able to run on autonomous vehicles which will not have large or expensive computers.</p>
+      <p>C++: PCL is a C++ library</p>
+
+      <h5>Schedule</h5>
+      <table class="highlight">
+        <thead>
+          <tr>
+            <td>Date</td>
+            <td>Item</td>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>Monday 4/10</td>
+            <td>Submit proposal</td>
+          </tr>
+          <tr>
+            <td>Monday 4/12</td>
+            <td>Install required libraries/software: PCL and required dependencies OpenMP ISPC</td>
+          </tr>
+          <tr>
+            <td>Monday 4/17</td>
+            <td>Sequential implementation of algorithm completed</td>
+          </tr>
+          <tr>
+            <td>Tuesday 4/18</td>
+            <td>Analyze where most computation occurs per iteration of algorithm to decide which parts are most worth parallelizing</td>
+          </tr>
+          <tr>
+            <td>Monday 4/24</td>
+            <td><p>Successful parallelism over points in point cloud using OpenMP, hopefully with substantial speedup</p><p>
+Look into parallelizing over points with ISPC</p></td>
+          </tr>
+          <tr>
+            <td>Tuesday 4/25</td>
+            <td>Project checkpoint</td>
+          </tr>
+          <tr>
+            <td>Monday 5/1</td>
+            <td>Look into parallelizing k-d tree construction</td>
+          </tr>
+          <tr>
+            <td>Monday 5/8</td>
+            <td>Finalize project and prepare for presentation</td>
+          </tr>
+          <tr>
+            <td>Friday 5/12</td>
+            <td>Project presentation and final write up</td>
+          </tr>
+        </tbody>
+      </table>
+  	</div>
+
+  	<div class="section" id="checkpoint">
+  		<h3>Checkpoint</h3>
+  		<p>lkasdjfl;kajdf;lkj;lkj</p>
+  	</div>
+
+  	<div class="section" id="final">
+  	  <h3>Final Write Up</h3>
+        <p>tbdtbdtbdtbdtbdtbdtbdtbd</p>
+      </div>
+
+  	  
+	  </div>
+
+
+  </div>
+
+
+
+	</script>
+
+	<footer class="page-footer amanda-navbar">&nbsp;&nbsp;&nbsp;&nbsp;lol
+		<div class="footer-copyright">&nbsp;&nbsp;&nbsp;&nbsp;adriel luo. amanda eng. 2017.</div>
+	</footer>
+</body>
+</html>
