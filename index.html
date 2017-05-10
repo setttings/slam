@@ -19,11 +19,11 @@
 <body>
 	<nav>
     <div class="nav-wrapper amanda-navbar">
-      <a href="#" class="brand-logo">&nbsp;&nbsp;15-418 Final Project</a>
+      <a class="brand-logo">&nbsp;&nbsp;15-418 Final Project</a>
       <ul id="nav-mobile" class="right hide-on-med-and-down">
-        <li><a href="index.html">Proposal</a></li>
+        <li><a href="proposal.html">Proposal</a></li>
         <li><a href="checkpoint.html">Checkpoint</a></li>
-        <li><a href="final.html">Final Write Up</a></li>
+        <li><a href="index.html">Final Write Up</a></li>
         <li><a href="http://www.github.com">Code</a></li>
       </ul>
     </div>
@@ -31,146 +31,48 @@
 
   <div id ="fullpage" class="container left-align">
   	<div class="section">
-     <h2>Parallel Simultaneous Localization and Mapping (SLAM) with Lidars</h2>
-  	 <h3>Proposal</h3>
+     <h2>Parallel Nearest Neighbor Search for Velodyne LiDAR Point Clouds</h2>
+  	 <h3>Final Report</h3>
      <p>Adriel Luo and Amanda Eng</p>
      <h5>Summary</h5>
-     <p>We are going to implement lidar mapping, an algorithm for doing SLAM with lidars, with parallelism so that it runs faster.</p>
-     <h5>Background</h5>
-     <p>Simultaneous localization and mapping (SLAM) is the problem of constructing or updating a map of an unknown environment while simultaneously keeping track of an agent's location within it. With the growing popularity of self-driving cars, lidars are ubiquitous as a means of mapping the environment and localizing.</p>
+     <p>We implemented a parallel nearest neighbor search that is optimized for point clouds returned by Velodyne LiDAR sensor, which are universally used on autonomous vehicles for sensing, localization and mapping. Nearest neighbor search is a fundamental step in iterative closest point (ICP) algorithms used to perform mapping. Our algorithm is currently able to achieve a 10x speed up over an optimized sequential kdtree-based nearest neighbors library implementation through GPU parallelism and by taking advantage of the 3D structure of Velodyne LiDAR point clouds, but we expect that we will be able to achieve a speed up can be as high as 100x.</p>
+     <br>
+     <h5>Major technical challenges</h5>
+     <p>One of the challenges arises from the fact that we are trying to outperform a sequential kd-tree-based nearest neighbor search implementation that is is fast and optimized (the Fast Library for Approximate Nearest Neighbors or FLANN). This means that we need to minimize the impact of the overhead of using the GPU for computation.</p>
+     <p>Parallelizing this algorithm is not trivial due to hardware and memory constraints. Point clouds have more than 120,000 points on average, so a naive pairwise brute force distance computation would need enough memory for 120,0002 = 14 billion entries, or 14 billion threads in total. Therefore we need to be smart about data reuse in order to reduce the memory footprint of the algorithm. We also try to use shared memory where possible to reduce the latency of memory access.</p>
+     <br>
+     <h5>Preliminary Results</h5>
+     <h6><i>Parallelizing over points</i></h6>
+     <p>We developed a CUDA implementation for nearest neighbors that parallelized over the pixels in the reference point cloud and calculated the nearest neighbor for each point in the target point cloud sequentially.  In order to find out if we are maximizing the parallelism available with CUDA, we varied the number of points in the reference point cloud and obtained the following graph. </p>
+     <img src="img/img3.png" width="600" height="350">
+     <img src="img/img4.png" width="600" height="350">
+     <p>As we can see from Figures 1 and 2 above, the CUDA times remained around the same (and were actually slower than the sequential implementation)  when the reference dataset contained around 2,000 points. This indicated that the overheads of the CUDA kernel calls dominated the time taken.</p>
+     <p>Beyond that, there was a somewhat linear increase in time as the number of points in the dataset increased.  This indicated that we were achieving the maximum parallelism capabilities of the machine given the constraints of our algorithm and dataset. Despite the parallelism, tis solution was still 40.3x slower than the sequential PCL kd-tree implementation. </p>
+     <br>
+     <h6><i>Parallelizing over points</i></h6>
+     <p>We developed a CUDA implementation for nearest neighbors that parallelized over the pixels in the reference point cloud and calculated the nearest neighbor for each point in the target point cloud sequentially.  In order to find out if we are maximizing the parallelism available with CUDA, we varied the number of points in the reference point cloud and obtained the following graph. </p>
+     <p>As we can see from Figures 1 and 2 above, the CUDA times remained around the same (and were actually slower than the sequential implementation)  when the reference dataset contained around 2,000 points. This indicated that the overheads of the CUDA kernel calls dominated the time taken.</p>
+     <p>Beyond that, there was a somewhat linear increase in time as the number of points in the dataset increased.  This indicated that we were achieving the maximum parallelism capabilities of the machine given the constraints of our algorithm and dataset. Despite the parallelism, tis solution was still 40.3x slower than the sequential PCL kd-tree implementation. </p>
+     <br>
+     <h6><i>Parallelizing over points in batches</i></h6>
+     <p>We moved on to use parallelize over points in batches of size chunksize.  This meant that the work performed by each CUDA thread increased by a factor of chunksize, but we made a CUDA call chunksize less times.  This turned out to be 4.3x faster our prior parallel CUDA algorithm.  This speedup can be explained by the overhead of  launching the additional CUDA kernels. </p>
+     <br>
+     <h6><i>Reducing search space</i></h6>
+     <p>Reducing the search space for nearest neighbors gives us significant additional speed up. Taking advantage of the 3D structure of Velodyne point clouds, as well as the most common use case, we can partition the point clouds by azimuth, and only search for nearest neighbors in the partition with similar azimuth. We sacrifice some correctness in reducing the search space, because the correctness nearest neighbor might not be within the space we are searching, but because this is an optimization problem and the data has noise to begin with, having some outliers is acceptable.</p>
 
-      <p>A lidar sensor sends out many laser beams to generate a point cloud that enables the computation of the distance to surrounding objects.  These point clouds represent the surrounding environment, such as in the image below.  However, a point cloud is only conveys information at a specific time.  To determine one’s movement, a sequence of point clouds are generated over time.  The lidar mapping algorithm we intend to parallelize for this project finds the differences between these point clouds to determine one’s movement and relative position over time.</p>
+     <img src="img/img5.png" width="600" height="350">
 
-      <img src="img/img1.png" width="40%" height="40%">
+     <p>We see that correctness is maintained better for nearest neighbor searches between consecutive frames than between non-consecutive frames. This is not surprising, since consecutive frames, with a temporal difference of only 0.1s, are structurally similar and the simplifying assumptions we make above about where to find the nearest neighbor are more valid. Indeed, searching for nearest neighbors between consecutive frames is the most common use case, because in lidar mapping applications, the map is incrementally built every frame, and every new incoming frame is matched with the prior frame.</p>
 
-      <p>Lidar mapping is an algorithm that is used to perform SLAM with lidars. The general algorithm that is repeated with every new point cloud is as follows:</p>
+     <p>The horizontal axis, speedup, is proportional to the number of radial partitions. We can sacrifice some correctness to achieve a significant speed up. For instance, with consecutive frames, we can achieve a speedup of 48x and still find the correct nearest neighbor 99.7% of the time. We can achieve correctness scores of 98.2% and 94.9% with a speedup of 100x and 200x respectively.</p>
 
-      <img src="img/img2.png" width="60%" height="60%">
+     <p>Depending on the level of correctness needed by an application and whether it is finding nearest neighbors in consecutive or non-consecutive frames, one can choose the maximum amount of speedup that meets the constraints.</p>
+     <br>
 
-      <h5>Challenge</h5>
-      <p>
-        There are many opportunities for parallelism in this algorithm. The insertion of points into the k-d tree is an interesting problem. Points in a point cloud can be worked on in parallel. Parallelism could be achieved with threads, or with vector instructions.
-      </p>
+     <h5>Summary of what final numbers on Friday are expected to show</h5>
+     <p>We expect that, once we are able to parallelize over points in the reference and target point clouds, we will be able to exceed the 10x speed up we are having now.</p>
 
-      <p>
-        The insertion of points into the k-d tree is challenging because it involves multiple threads trying to modify the data structure concurrently. It would also be challenging because we are going against PCL’s highly-optimized sequential implementation of a k-d tree.
-      </p>
-
-      <h5>Resources</h5>
-      <p>
-        <a href="http://www.roboticsproceedings.org/rss10/p07.pdf">Original publication describing algorithm </a>
-      </p>
-      <p>
-        <a href="https://github.com/laboshinl/loam_velodyne">Starter code</a>
-      </p>
-      <p>
-        <a href="http://www.pointclouds.org/">Point Cloud Library </a>
-      </p>
-      <p>
-        <a href=" https://en.wikipedia.org/wiki/K-d_tree">K-d tree </a>
-      </p>
-      <p>
-        <a href="http://velodynelidar.com/downloads.html">Point cloud datasets</a>
-      </p>
-      
-      <h5>Goals</h5>
-      <h6>Plan to Achieve</h6>
-
-      <ul class="collapsible">
-        <li class="collection-item">
-          <div class="collapsible-header"><b>Correct algorithm</b></div>
-          <div class="collapsible-body">
-            At the very least, the algorithm should be correct. It should build a reasonable map and give a reasonable estimate of one’s position. Correctness should be obvious. The map built will either be reasonable (point clouds from consecutive frames overlap) or very wrong (map built is nonsensical, position estimate is always zero etc).</div>
-        </li>
-
-        <li class="collection-item">
-          <div class="collapsible-header"><b>3x speedup over sequential algorithm</b></div>
-          <div class="collapsible-body">
-            This conservative estimate comes from the fact that our computers have two hyperthreaded cores and that we won’t be able to parallelizing the entire algorithm. We might be able to get more than this with SIMD programming.
-          </div>
-        </li>
-      </ul>
-      <br>
-      <h6>Hope to Achieve</h6>
-
-      <ul class="collapsible">
-        <li class="collection-item">
-          <div class="collapsible-header"><b>Speedup fast enough to run the algorithm in real-time</b></div>
-          <div class="collapsible-body">
-            The exact speedup required depends on how long the sequential algorithm takes. To achieve real-time capabilities, the algorithm must be able to process 10 point clouds per second (this is the frequency at which point clouds come in). This means that if every iteration of the sequential algorithm takes 1 second to run, we need a 10x speedup for the algorithm to run in full-time.</div>
-        </li>
-
-        <li class="collection-item">
-          <div class="collapsible-header"><b>Parallel construction of/insertion into the k-d K-d_tree</b></div>
-          <div class="collapsible-body">
-            We foresee that this will be challenging, as with all concurrent data structure implementations.
-          </div>
-        </li>
-      </ul>
-
-      <h5>Deliverables</h5>
-        <p>Video of map built and position computed</p>
-        <p>Speedup vs parallelism technique (threads, SIMD etc.)</p>
-
-      <h5>Platform Choice</h5>
-      <p>Macbook: The algorithm should be able to run off an average laptop and not require dedicated hardware. More importantly, it should run on laptop-sized computers because you want the algorithm to be able to run on autonomous vehicles which will not have large or expensive computers.</p>
-      <p>C++: PCL is a C++ library</p>
-
-      <h5>Preliminary Schedule</h5>
-      <table class="highlight">
-        <thead>
-          <tr>
-            <td>Date</td>
-            <td>Item</td>
-          </tr>
-        </thead>
-
-        <tbody>
-          <tr>
-            <td>Monday 4/10</td>
-            <td>Submit proposal</td>
-          </tr>
-          <tr>
-            <td>Monday 4/12</td>
-            <td>Install required libraries/software: PCL and required dependencies OpenMP ISPC</td>
-          </tr>
-          <tr>
-            <td>Monday 4/17</td>
-            <td>Sequential implementation of algorithm completed</td>
-          </tr>
-          <tr>
-            <td>Tuesday 4/18</td>
-            <td>Analyze where most computation occurs per iteration of algorithm to decide which parts are most worth parallelizing</td>
-          </tr>
-          <tr>
-            <td>Monday 4/24</td>
-            <td><p>Successful parallelism over points in point cloud using OpenMP, hopefully with substantial speedup</p><p>
-Look into parallelizing over points with ISPC</p></td>
-          </tr>
-          <tr>
-            <td>Tuesday 4/25</td>
-            <td>Project checkpoint</td>
-          </tr>
-          <tr>
-            <td>Monday 5/1</td>
-            <td>Look into parallelizing k-d tree construction</td>
-          </tr>
-          <tr>
-            <td>Monday 5/8</td>
-            <td>Finalize project and prepare for presentation</td>
-          </tr>
-          <tr>
-            <td>Friday 5/12</td>
-            <td>Project presentation and final write up</td>
-          </tr>
-        </tbody>
-      </table>
-  	</div>
-    <br><br><br><br><br><br><br><br>
-  	  
-	  </div>
-
-
+    </div>
   </div>
 
 
