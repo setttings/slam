@@ -1,1 +1,1 @@
-/home/amanda/loam/build/CMakeFiles/loam.dir
+/home/amanda/loam_parallel/build/CMakeFiles/loam.dir

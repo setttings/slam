@@ -3,6 +3,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <omp.h>
 #include "CycleTimer.h"
 
 #define N_SCANS 64
@@ -618,6 +619,7 @@ int main (int argc, char** argv)
       float crz = cos(transform[2]);
 
       // CAN JUST PUT A PARALLEL FOR HERE
+      #pragma omp parallel for schedule(static)
       for (int i = 0; i < n; i++) {
         pointOri = laserCloudOri->points[i];
         coeff = coeffSel->points[i];

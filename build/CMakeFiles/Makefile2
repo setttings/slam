@@ -47,10 +47,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/amanda/loam
+CMAKE_SOURCE_DIR = /home/amanda/loam_parallel
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/amanda/loam/build
+CMAKE_BINARY_DIR = /home/amanda/loam_parallel/build
 
 #=============================================================================
 # Target rules for target CMakeFiles/loam.dir
@@ -59,7 +59,7 @@ CMAKE_BINARY_DIR = /home/amanda/loam/build
 CMakeFiles/loam.dir/all:
 	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/depend
 	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/build
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/amanda/loam/build/CMakeFiles  1
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/amanda/loam_parallel/build/CMakeFiles  1
 	@echo "Built target loam"
 .PHONY : CMakeFiles/loam.dir/all
 
@@ -69,9 +69,9 @@ all: CMakeFiles/loam.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/loam.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam/build/CMakeFiles 1
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam_parallel/build/CMakeFiles 1
 	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/loam.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam_parallel/build/CMakeFiles 0
 .PHONY : CMakeFiles/loam.dir/rule
 
 # Convenience name for target.

@@ -35,10 +35,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/amanda/loam
+CMAKE_SOURCE_DIR = /home/amanda/loam_parallel
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/amanda/loam/build
+CMAKE_BINARY_DIR = /home/amanda/loam_parallel/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/loam.dir/depend.make
@@ -51,17 +51,17 @@ include CMakeFiles/loam.dir/flags.make
 
 CMakeFiles/loam.dir/loam.cpp.o: CMakeFiles/loam.dir/flags.make
 CMakeFiles/loam.dir/loam.cpp.o: ../loam.cpp
-	$(CMAKE_COMMAND) -E cmake_progress_report /home/amanda/loam/build/CMakeFiles $(CMAKE_PROGRESS_1)
+	$(CMAKE_COMMAND) -E cmake_progress_report /home/amanda/loam_parallel/build/CMakeFiles $(CMAKE_PROGRESS_1)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building CXX object CMakeFiles/loam.dir/loam.cpp.o"
-	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/loam.dir/loam.cpp.o -c /home/amanda/loam/loam.cpp
+	/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/loam.dir/loam.cpp.o -c /home/amanda/loam_parallel/loam.cpp
 
 CMakeFiles/loam.dir/loam.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/loam.dir/loam.cpp.i"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/amanda/loam/loam.cpp > CMakeFiles/loam.dir/loam.cpp.i
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /home/amanda/loam_parallel/loam.cpp > CMakeFiles/loam.dir/loam.cpp.i
 
 CMakeFiles/loam.dir/loam.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/loam.dir/loam.cpp.s"
-	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/amanda/loam/loam.cpp -o CMakeFiles/loam.dir/loam.cpp.s
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /home/amanda/loam_parallel/loam.cpp -o CMakeFiles/loam.dir/loam.cpp.s
 
 CMakeFiles/loam.dir/loam.cpp.o.requires:
 .PHONY : CMakeFiles/loam.dir/loam.cpp.o.requires
@@ -173,6 +173,6 @@ CMakeFiles/loam.dir/clean:
 .PHONY : CMakeFiles/loam.dir/clean
 
 CMakeFiles/loam.dir/depend:
-	cd /home/amanda/loam/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/amanda/loam /home/amanda/loam /home/amanda/loam/build /home/amanda/loam/build /home/amanda/loam/build/CMakeFiles/loam.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/amanda/loam_parallel/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/amanda/loam_parallel /home/amanda/loam_parallel /home/amanda/loam_parallel/build /home/amanda/loam_parallel/build /home/amanda/loam_parallel/build/CMakeFiles/loam.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/loam.dir/depend
 

@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/amanda/loam/CycleTimer.h
+/home/amanda/loam_parallel/CycleTimer.h
 sys/sysctl.h
 -
 mach/mach.h
@@ -30,7 +30,7 @@ string.h
 sys/time.h
 -
 
-/home/amanda/loam/loam.cpp
+/home/amanda/loam_parallel/loam.cpp
 iostream
 -
 fstream
@@ -41,8 +41,10 @@ pcl/visualization/pcl_visualizer.h
 -
 pcl/kdtree/kdtree_flann.h
 -
+omp.h
+-
 CycleTimer.h
-/home/amanda/loam/CycleTimer.h
+/home/amanda/loam_parallel/CycleTimer.h
 
 /usr/include/eigen3/Eigen/Cholesky
 Core
