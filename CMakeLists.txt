@@ -8,5 +8,5 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable (a.out main.cpp CycleTimer.h)
-target_link_libraries (a.out ${PCL_LIBRARIES})
+add_executable (loam loam.cpp CycleTimer.h)
+target_link_libraries (loam ${PCL_LIBRARIES})

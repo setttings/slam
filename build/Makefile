@@ -42,10 +42,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/amanda/kdtree_timing
+CMAKE_SOURCE_DIR = /home/amanda/loam
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/amanda/kdtree_timing/build
+CMAKE_BINARY_DIR = /home/amanda/loam/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -72,9 +72,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/kdtree_timing/build/CMakeFiles /home/amanda/kdtree_timing/build/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam/build/CMakeFiles /home/amanda/loam/build/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/kdtree_timing/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/amanda/loam/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -102,41 +102,41 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named a.out
+# Target rules for targets named loam
 
 # Build rule for target.
-a.out: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 a.out
-.PHONY : a.out
+loam: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 loam
+.PHONY : loam
 
 # fast build rule for target.
-a.out/fast:
-	$(MAKE) -f CMakeFiles/a.out.dir/build.make CMakeFiles/a.out.dir/build
-.PHONY : a.out/fast
+loam/fast:
+	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/build
+.PHONY : loam/fast
 
-main.o: main.cpp.o
-.PHONY : main.o
+loam.o: loam.cpp.o
+.PHONY : loam.o
 
 # target to build an object file
-main.cpp.o:
-	$(MAKE) -f CMakeFiles/a.out.dir/build.make CMakeFiles/a.out.dir/main.cpp.o
-.PHONY : main.cpp.o
+loam.cpp.o:
+	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/loam.cpp.o
+.PHONY : loam.cpp.o
 
-main.i: main.cpp.i
-.PHONY : main.i
+loam.i: loam.cpp.i
+.PHONY : loam.i
 
 # target to preprocess a source file
-main.cpp.i:
-	$(MAKE) -f CMakeFiles/a.out.dir/build.make CMakeFiles/a.out.dir/main.cpp.i
-.PHONY : main.cpp.i
+loam.cpp.i:
+	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/loam.cpp.i
+.PHONY : loam.cpp.i
 
-main.s: main.cpp.s
-.PHONY : main.s
+loam.s: loam.cpp.s
+.PHONY : loam.s
 
 # target to generate assembly for a file
-main.cpp.s:
-	$(MAKE) -f CMakeFiles/a.out.dir/build.make CMakeFiles/a.out.dir/main.cpp.s
-.PHONY : main.cpp.s
+loam.cpp.s:
+	$(MAKE) -f CMakeFiles/loam.dir/build.make CMakeFiles/loam.dir/loam.cpp.s
+.PHONY : loam.cpp.s
 
 # Help Target
 help:
@@ -146,10 +146,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... a.out"
-	@echo "... main.o"
-	@echo "... main.i"
-	@echo "... main.s"
+	@echo "... loam"
+	@echo "... loam.o"
+	@echo "... loam.i"
+	@echo "... loam.s"
 .PHONY : help
 
 
