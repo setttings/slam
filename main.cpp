@@ -10,24 +10,23 @@
 #include <cmath>
 
 #define e 0.0000000000001f
+#define CHUNKSIZE 4
 
 void printCudaInfo();
-double* cudaSetUp(int size, double* X);
-int cudaFindNearestNeighbor(int size, double* X, double* Y, double* Z,
- double x, double y, double z);
-int serialFindNearestNeighbor(int size, double* X, double* Y,
- double* Z, double x, double y, double z);
+float* cudaSetUp(int size, float* X);
+void cudaFindNearestNeighbor(int N0, int N1, float* X_0, float* Y_0, float* Z_0, 
+  float *X_1, float *Y_1, float *Z_1, int start, int* results);
+int serialFindNearestNeighbor(int size, float* X, float* Y,
+ float* Z, float x, float y, float z);
 
-
-
-void loadFileWrapper(int i, double *X, double *Y, double *Z) {
+void loadFileWrapper(int i, float *X, float *Y, float *Z) {
   char buff[40];
   snprintf(buff, sizeof(buff), "../point_clouds/00000%05d.txt", i);
 
   std::string buffStr = buff;
   std::ifstream infile(buffStr.c_str());
   std::cout << "File name: " << buffStr << std::endl;
-  double a, b, c ,d;
+  float a, b, c ,d;
   int index = 0;
   while (infile >> a >> b >> c >> d) {
     X[index] = a;
@@ -35,7 +34,6 @@ void loadFileWrapper(int i, double *X, double *Y, double *Z) {
     Z[index] = c;
     index++;
   }
-  infile.close();
   return;
 }
 
@@ -43,57 +41,51 @@ void loadFileWrapper(int i, double *X, double *Y, double *Z) {
 int main(int argc, char** argv) {
   printCudaInfo();
   // sum up total runtime for all NUM_ITER iterations and divide by NUM_ITER
-  double cudaTimes = 0.0;
-  double serialTimes = 0.0;
-  double startTime;
-  double endTime;
+  float cudaTimes = 0.0;
+  float serialTimes = 0.0;
+  float startTime;
+  float endTime;
 
   // Read file 0
-  int size = 120574;  // hardcoded for file 0
-  double X[size];
-  double Y[size];
-  double Z[size];
+  int N0 = 120574; 
+  float X[N0];
+  float Y[N0];
+  float Z[N0];
   loadFileWrapper(0, X, Y, Z);
 
   // Read file 1
-  int size2 = 120831;
-  double X2[size2];
-  double Y2[size2];
-  double Z2[size2];
+  int N1 = 120831;
+  float X2[N1];
+  float Y2[N1];
+  float Z2[N1];
   loadFileWrapper(1, X2, Y2, Z2);
   
   // Pointers to arrays on GPU(?) memory
   startTime = CycleTimer::currentSeconds();
-  double *XC = cudaSetUp(size, X);
-  double *YC = cudaSetUp(size, Y);
-  double *ZC = cudaSetUp(size, Z);
+  float *XC = cudaSetUp(N0, X);
+  float *YC = cudaSetUp(N0, Y);
+  float *ZC = cudaSetUp(N0, Z);
+  // Convert the query array into cuda code too
+  float *XC2 = cudaSetUp(N1, X2);
+  float *YC2 = cudaSetUp(N1, Y2);
+  float *ZC2 = cudaSetUp(N1, Z2);
   endTime = CycleTimer::currentSeconds();
   std::cout << "Construction: " << endTime-startTime << std::endl;
 
-
-  for (int i=0; i<size2; i++) {
+  int result[CHUNKSIZE];
+  for (int i=0; i<N1; i+=CHUNKSIZE) {
     startTime = CycleTimer::currentSeconds();
-    int cudaAns = cudaFindNearestNeighbor(size, XC, YC, ZC, X2[i], Y2[i], Z2[i]);
+    cudaFindNearestNeighbor(N0, N1, XC, YC, ZC, XC2, YC2, ZC2, i, result);
     endTime = CycleTimer::currentSeconds();
     cudaTimes = cudaTimes + (endTime-startTime);
 
-    startTime = CycleTimer::currentSeconds();
-    int serialAns = serialFindNearestNeighbor(size, X, Y, Z, X2[i], Y2[i], Z2[i]);
-    endTime = CycleTimer::currentSeconds();
-    serialTimes = serialTimes + (endTime-startTime);
-
-    if (cudaAns!=serialAns) { 
-      // Note: there is some difference in floating point precision when the code is run on CPU/GPU
-      // Accept the answer if it doesn't differ by e
-      double cuda = (X[cudaAns]-X2[i]*X[cudaAns]-X2[i]) + (Y[cudaAns]-Y2[i]*X[cudaAns]-Y2[i]) + (Z[cudaAns]-Z2[i]*Z[cudaAns]-Z2[i]);
-      double serial = (X[serialAns]-X2[i]*X[serialAns]-X2[i]) + (Y[serialAns]-Y2[i]*X[serialAns]-Y2[i]) + (Z[serialAns]-Z2[i]*Z[serialAns]-Z2[i]);
-      double diff = sqrt(cuda)-sqrt(serial);
-      if (diff > e) {
-        std::cout << "CUDA's answer: " << X[cudaAns] << " " << Y[cudaAns] << " " << Z[cudaAns] << std::endl;
-        std::cout << "Serial answer: " << X[serialAns] << " " << Y[serialAns] << " " << Z[serialAns] << std::endl;
-        std::cout << "CUDA: " << cudaAns << std::endl;
-        std::cout << "Serial: " << serialAns << std::endl;
-        return -1;
+    for (int j=0; j<CHUNKSIZE; j++) {
+      startTime = CycleTimer::currentSeconds();
+      int serialAns = serialFindNearestNeighbor(N0, X, Y, Z, X2[i+j], Y2[i+j], Z2[i+j]);
+      endTime = CycleTimer::currentSeconds();
+      serialTimes = serialTimes + (endTime-startTime);
+      if (serialAns != result[j]) {
+        std::cout << "res:" << i+j << " " << result[j] << " " << serialAns <<  std::endl;
       }
     }
   }
