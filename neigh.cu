@@ -1,117 +1,114 @@
 #include <stdio.h>
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <driver_functions.h>
+
 #include "CycleTimer.h"
+
 #include <vector>
 #include <cfloat>
 
 #define THREADSPERBLOCK 512 
-#define CHUNKSIZE 4
+#define CHUNKSIZE 40
 
 
-__global__ void findNearestNeighbor(float *X_0, float *Y_0, float *Z_0, float *X_1, float *Y_1, float *Z_1, 
-  int start, int N0, int N1, float *rDistances, int *rIndices) {
+__global__ void findNearestNeighbor(float *X_0, float *Y_0, float *Z_0, float *X_1, float *Y_1, float *Z_1,
+ int *startIndices, int *endIndices, int *rIndices) {
   // X_0, Y_0, Z_0 are from point cloud 0
   // X_1, Y_1, Z_1 are from point cloud 1
-  // In each thread, finds the minimum distance for PC1[start,....,start+CHUNKSIZE] to
-  // points PC0[tid_0,...,tid_blocksize]
-  // Stores the corresponding distance in distances[]
-  // And corresponding index in indices[]
-  __shared__ float distances[THREADSPERBLOCK*CHUNKSIZE];
-  __shared__ int indices[THREADSPERBLOCK*CHUNKSIZE];
 
-  int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= N0) {
-    for (int i=0; ((i<CHUNKSIZE)); i++) {
-      distances[threadIdx.x*CHUNKSIZE+i] = -1.0;
-      indices[threadIdx.x*CHUNKSIZE+i] = tid;
-    }
+  __shared__ float distances[THREADSPERBLOCK];
+  __shared__ int indices[THREADSPERBLOCK];
+
+  int startIndex = startIndices[blockIdx.x];
+  int endIndex = endIndices[blockIdx.x];
+  indices[threadIdx.x] = startIndex+threadIdx.x;
+  if (threadIdx.x > endIndex-startIndex+1) {
+    distances[threadIdx.x] = -1.0; 
   } else {
-    for (int i=0; ((i<CHUNKSIZE)); i++) {
-      indices[threadIdx.x*CHUNKSIZE+i] = tid;
-      // Calculate the distance
-      float tmp1 = X_0[tid]-X_1[start+i];
-      float tmp2 = Y_0[tid]-Y_1[start+i];
-      float tmp3 = Z_0[tid]-Z_1[start+i];
-      distances[threadIdx.x*CHUNKSIZE+i] = sqrt(tmp1*tmp1 + tmp2*tmp2 + tmp3*tmp3);
-    }
+    // Calculate distances from (x,y,z) to (X[i],Y[i],Z[i])
+    // Store in distances[i]
+    float tmp1 = X_0[startIndex+threadIdx.x]-X_1[blockIdx.x];
+    float tmp2 = Y_0[startIndex+threadIdx.x]-Y_1[blockIdx.x];
+    float tmp3 = Z_0[startIndex+threadIdx.x]-Z_1[blockIdx.x];
+    distances[threadIdx.x] = sqrt(tmp1*tmp1 + tmp2*tmp2 + tmp3*tmp3);
   }
   __syncthreads();
-  // Begin reduction within thread block
-  // THREADSPERBLOCK must be a prefect square
-  for (int i=0; (i<CHUNKSIZE&(start+i<N1)); i++) {
-    int n = THREADSPERBLOCK; 
-    while (n > 1) {
-      int half = n/2;
-      // Activate the first half of threads only
-      if (threadIdx.x < half) {
-        int thread2 = threadIdx.x + half;
-        float dist2 = distances[thread2*CHUNKSIZE+i];
-        float dist1 = distances[threadIdx.x*CHUNKSIZE+i];
-        // The other value is smaller, do some replacement
-        if ((dist2<=dist1) & (dist2 != -1.0)) {
-          distances[threadIdx.x*CHUNKSIZE+i] = dist2;
-          indices[threadIdx.x*CHUNKSIZE+i] = indices[thread2*CHUNKSIZE+i];
-        }
+
+  // Reduce over all the stuff
+  // Note: for reduction to work, THREADSPERBLOCK must be a perfect square
+  int nThreads = THREADSPERBLOCK;
+  while(nThreads > 1) {
+    int halfPoint = nThreads/2; // divide by two
+    // only use the first half of the threads
+   
+    if (threadIdx.x < halfPoint) {
+      int thread2 = threadIdx.x + halfPoint;
+   
+      // Get the shared value stored by another thread
+      float temp = distances[thread2];
+      if (temp < distances[threadIdx.x] & temp!=-1.0) {
+        distances[threadIdx.x] = temp; 
+        indices[threadIdx.x] = indices[thread2];
       }
-      __syncthreads();
-      n = half;
     }
     __syncthreads();
-    if (threadIdx.x==0) {
-      // Store this in the result array
-      rDistances[blockIdx.x*CHUNKSIZE+i] = distances[i];
-      rIndices[blockIdx.x*CHUNKSIZE+i] = indices[i];
-    }
+   
+    nThreads = halfPoint;
+  }
+
+  if (threadIdx.x==0) {
+    rIndices[blockIdx.x] = indices[0];
   }
 }
 
-float* cudaSetUp(int size, float* X) {
+
+float *cudaSetUp(int arr_size, float *X) {
   // Copy arrays to device memory
   float *XC;
-  cudaMalloc((void **)&XC, sizeof(float)*size);
-  cudaMemcpy(XC, X, sizeof(float)*size, cudaMemcpyHostToDevice);
+  cudaError_t mallocErr = cudaMalloc((void **)&XC, sizeof(float)*arr_size);
+  if (mallocErr != cudaSuccess)
+    printf("Malloc Error:  \"%s\".\n", cudaGetErrorString(mallocErr));
+
+  // Copy all points from pointsInPies into t
+  cudaError_t cpyErr = cudaMemcpy(XC, X, sizeof(float)*arr_size, cudaMemcpyHostToDevice);
+  if (cpyErr != cudaSuccess)
+    printf("cudaMemcpy Error 1: \"%s\".\n", cudaGetErrorString(cpyErr));
   return XC;
 }
 
-void cudaFindNearestNeighbor(int N0, int N1, float* X_0, float* Y_0, float* Z_0, 
-  float *X_1, float *Y_1, float *Z_1, int start, int* results) {
-  int threadsPerBlock = THREADSPERBLOCK;
-  int blocks = (N0 + threadsPerBlock - 1) / threadsPerBlock;
-
-  // Store the minimum distance + corresponding index from each thread block 
+float *createFloatArray(int blocks) {
   float *distances;
-  cudaMalloc((void **)&distances, sizeof(float)*blocks*CHUNKSIZE);
-  int *indices;
-  cudaMalloc((void **)&indices, sizeof(int)*blocks*CHUNKSIZE);
+  cudaMalloc((void **)&distances, sizeof(float)*blocks);
+  return distances;
+}
 
-  findNearestNeighbor<<<blocks, threadsPerBlock>>>(X_0, Y_0, Z_0, X_1, Y_1, Z_1, start, N0, N1, distances, indices);
+int *createIntArray(int blocks) {
+  int *indices;
+  cudaMalloc((void **)&indices, sizeof(int)*blocks);
+  return indices;
+}
+
+void cudaFindNearestNeighbor(int N1, int *startIndex, int *endIndex, float* X_0, float* Y_0, float* Z_0, 
+  float *X_1, float *Y_1, float *Z_1, int *indices, float *abc, float *def, float *ghi, int *mno, int *pqr, int *cudaAns) {
+  int threadsPerBlock = THREADSPERBLOCK;
+  int blocks = CHUNKSIZE; 
+  // the intention now is to make the computation for each item in point cloud 1 fit into a single block  
+
+  // Convert them arrays to device memory
+  cudaError_t cpyErr;
+  cpyErr=cudaMemcpy(abc, X_1, sizeof(float)*CHUNKSIZE, cudaMemcpyHostToDevice);
+  cpyErr=cudaMemcpy(def, Y_1, sizeof(float)*CHUNKSIZE, cudaMemcpyHostToDevice);
+  cpyErr=cudaMemcpy(ghi, Z_1, sizeof(float)*CHUNKSIZE, cudaMemcpyHostToDevice);
+  cpyErr=cudaMemcpy(mno, startIndex, sizeof(int)*CHUNKSIZE, cudaMemcpyHostToDevice);
+  cpyErr=cudaMemcpy(pqr, endIndex, sizeof(int)*CHUNKSIZE, cudaMemcpyHostToDevice);
+
+  findNearestNeighbor<<<blocks, threadsPerBlock>>>(X_0, Y_0, Z_0, abc, def, ghi, mno, pqr, indices);
   cudaError_t launch = cudaGetLastError();
   if (launch != cudaSuccess)
-        printf("kernel launch failed with error \"%s\".\n", cudaGetErrorString(launch));
-  cudaError_t cudaerr =  cudaDeviceSynchronize();
-  if (cudaerr != cudaSuccess)
-        printf("kernel launch failed with error \"%s\".\n", cudaGetErrorString(cudaerr));
-
-  float rDistances[blocks*CHUNKSIZE];
-  cudaMemcpy(rDistances, distances, sizeof(float)*blocks*CHUNKSIZE, cudaMemcpyDeviceToHost);
-  int rIndices[blocks*CHUNKSIZE];
-  cudaMemcpy(rIndices, indices, sizeof(int)*blocks*CHUNKSIZE, cudaMemcpyDeviceToHost);
-
-  for (int i=0; i < CHUNKSIZE; i++) {
-    int minIndex = -1;
-    float minSeen = FLT_MAX;
-    for (int j=0; j<blocks; j++) {
-      if (minSeen >= rDistances[j*CHUNKSIZE+i]) {
-        minIndex = rIndices[j*CHUNKSIZE+i];
-        minSeen = rDistances[j*CHUNKSIZE+i];
-      }
-    }
-    results[i] = minIndex;
-  }
-
-  return;
+    printf("kernel launch failed with error \"%s\".\n", cudaGetErrorString(launch));
+  cudaMemcpy(cudaAns, indices, sizeof(int)*blocks, cudaMemcpyDeviceToHost);
 }
 
 int serialFindNearestNeighbor(int size, float* X, float* Y,
@@ -137,6 +134,8 @@ int serialFindNearestNeighbor(int size, float* X, float* Y,
 }
 
 void printCudaInfo() {
+  // for fun, just print out some stats on the machine
+
   int deviceCount = 0;
   cudaError_t err = cudaGetDeviceCount(&deviceCount);
 
