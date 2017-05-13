@@ -43,6 +43,7 @@
      <h5>Background</h5>
      <p>Lidar sensors provide 3D information about the environment. The information they return is in the form of point clouds: sets of 3D points, each with an (x,y,z) coordinate. Lidar sensors shoot laser beams into the environment. The laser beams hit surfaces and return to the sensor. By measuring the time of flight for each beam, the sensor is able to know how far surfaces are in particular directions. Using many laser beams, a lidar sensor generates a point cloud that encodes the 3D structure of the environment.</p>
      <p>Lidar sensors are almost universally used on autonomous vehicle. In particular, the Velodyne lidar sensor is an extremely common sensor that is mounted on top of many self-driving cars. The point clouds it returns are useful for sensing, localization and mapping. Velodyne point clouds look like this:</p>
+     <center><img src="img/img8.jpg" width="50%"></center>
      <p>A common algorithm used for mapping is point cloud matching, where the difference between two point clouds is minimized. By overlapping point clouds returned sequentially from the lidar, a map is built, and the vehicle can localize itself in this map simultaneously.</p>
      <p>A key step in point cloud matching is nearest neighbor search. In the matching of two point clouds, each point in one point cloud looks for its nearest neighbor (by Euclidean distance) in the other point cloud. General nearest neighbor search is often implemented with a k-d tree, which gives an average O(log n) search time.</p>
 
@@ -66,19 +67,21 @@
       <h6><u>Establishing a baseline</u></h6>
       <p>We are trying to outperform a sequential kd-tree-based nearest neighbor search implementation that is fast and optimized (the Fast Library for Approximate Nearest Neighbors or FLANN), so the first step is to figure out how long that is taking.</p>
       <p>We took two timings: the time it took to insert the 120,000 points in the k-d tree (construction), and the time it took to query the k-d tree for the nearest neighbor for each of 120,000 points (querying).</p>
+      <img src="img/img9.png" width="50%">
       <p>The overall timing we are looking beat for 120,000 queries into a cloud of 120,000 points is 0.229s.</p>
 
       <h6><u>Naive sequential implementation (brute-force)</u></h6>
-
+      <img src="img/img10.png" width="70%">
       <h6><u>Deciding to use CUDA</u></h6>
       <p>The problem finding the nearest neighbor between a point from cloud1 and all points of cloud0 involves calculating the distance between a point and all others.  This will invoke the same set of instructions on different pair of points, making it amenable to parallelism with SIMD. This, combined with the facts that cloud0 contains thousands of points and that the GPU has hundreds of vector lanes for SIMD parallelism, makes this a good problem to be carried out with CUDA.</p>
 
       <h6><u>Parallelizing over points</u></h6>
       <p>Our first pass was a CUDA implementation that parallelized over the pixels in the reference point cloud and calculated the nearest neighbor for each point in the target point cloud sequentially.  We mapped each point in the reference point cloud to a CUDA thread.  For each point a in the query cloud, we launched a CUDA kernel.  Every thread in the kernel calculated the Euclidian between the coordinates of the point from the reference cloud it was assigned to, and the a. When this was done, we reduced across the threads within a threadblock to find the index of the point in cloud 0 that was nearest to a.  We then performed another reduction across the values returned from all threadblocks to find the minimum. </p>
       <p>Pseudocode for what we did is as follows.</p>
-
+      <img src="img/img11.png" width="70%">
       <p>In order to find out if we are maximizing the parallelism available with CUDA, we varied the number of points in the reference point cloud and obtained the following graph. </p>
-
+      <center><img src="img/img3.png" width="60%" align="middle"></center>
+      <center><img src="img/img4.png" width="60%" align="middle"></center>
       <p>As we can see from Figures 1 and 2 above, the CUDA times fluctuated somewhat (and were actually slower than the sequential implementation)  when the reference dataset contained around 2,000 points. Figure 2 also indicated that the overheads of the CUDA kernel calls dominated the overall time taken, especially when there were fewer points.  </p>
 
       <p>When there was a larger number of points in cloud 0, there was a somewhat linear increase in time as the number of points in the dataset increased. This indicated that we were achieving the maximum parallelism capabilities of the machine given the constraints of our algorithm and dataset.  </p>
@@ -90,19 +93,19 @@
 
       <h6><u>Reducing search space</u></h6>
       <p>After our first 2 tries were met with limited success, we came to the conclusion that we would have to do some prior processing of the point cloud to reduce the search space to have any hope of beating the optimized FLANN algorithm. The point clouds produced by lidar sensors have a very specific 3-D structure like the one below. This led to the idea of partitioning the reference into bins, and searching only in a particular bin for a point’s nearest neighbor.</p>
-
+      <center><img src="img/img8.jpg" width="50%"></center>
       <p>Reducing the search space for nearest neighbors gives us significant additional speed up. We found that 99% of the time, the nearest neighbor of a point would be within 2.5º of it in the azimuth. Taking advantage of the 3D structure of Velodyne point clouds, we can partition the point clouds by azimuth, and only search for nearest neighbors in the partition with similar azimuth. We sacrifice some correctness in reducing the search space because the correct nearest neighbor might not be in the partition we are searching, but for most applications having some outliers is acceptable to get a speedup.</p>
-
+      <center><img src="img/img12.png" width="50%"></center>
       <p>Depending on the level of correctness needed by an application and whether it is finding nearest neighbors in consecutive or non-consecutive frames, one can choose the maximum amount of speedup that meets the constraints.</p>
 
       <p>The pseudocode for this iteration of our code looked as follows:</p>
-
+      <img src="img/img14.png" width="70%">
       <p>We noticed from our partitioning into of the points into 300 segments meant that each segment contained less than 512 points from cloud 0 in each bin.  Like Attempts 1 and 2, we assigned each point in cloud 0 to a CUDA thread and computed the distance from a point in cloud 1 to all these points, before doing a reduction to find the minimum.  However, since the sample space has been reduced, the computation needed to find the nearest neighbor for any point in cloud 1 has been localized to a single thread block.  This meant that there was no need to wait for all threadblocks to return doing a final reduction.  This eliminated a large portion of work done from our earlier implementations.</p>
 
       <br>
       <h5>Summary of Results</h5>
       <p>The timings and speedups that we obtained from the approaches mentioned above are summarized in the following table. Problem sizes were consistent across testing for all algorithms. Performance was measured according to the speedup w.r.t. the FLANN implementation. </p>
-
+      <img src="img/img13.png" width="70%">
       <p>* The timings above were the averages of 10 trials taken on the same machine.</p>
 
       <p>One interesting thing we noticed was that although our final implementation did not beat the total time taken by FLANN, its query time was actually 1.69x faster than FLANN’s, and our overall speedup was limited due to the high overhead of constructing our data structures.  </p>
@@ -149,8 +152,8 @@
 
      <h6><i>Parallelizing over points</i></h6>
      <p>We developed a CUDA implementation for nearest neighbors that parallelized over the pixels in the reference point cloud and calculated the nearest neighbor for each point in the target point cloud sequentially.  In order to find out if we are maximizing the parallelism available with CUDA, we varied the number of points in the reference point cloud and obtained the following graph. </p>
-     <center><img src="img/img3.png" width="600" height="400" align="middle"></center>
-     <center><img src="img/img4.png" width="600" height="400" align="middle"></center>
+     <center><img src="img/img3.png" width="60%" align="middle"></center>
+     <center><img src="img/img4.png" width="60%" align="middle"></center>
      <p>As we can see from Figures 1 and 2 above, the CUDA times remained around the same (and were actually slower than the sequential implementation)  when the reference dataset contained around 2,000 points. This indicated that the overheads of the CUDA kernel calls dominated the time taken.</p>
      <p>Despite the massive parallelism that using CUDA brought, it was still <b>40.3x slower than the sequential PCL kd-tree implementation</b> with FLANN.  This led us to think of other implementations that involved launching fewer CUDA kernels or preprocessing the data.</p>
      <br>
