@@ -1,90 +1,105 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <getopt.h>
+#include <string>
+#include <cstring>
 #include <iostream>
 #include <fstream>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/kdtree/kdtree_flann.h>
 #include "CycleTimer.h"
+#include <vector>
+#include <cmath>
 
-typedef pcl::PointXYZ PointType;
-typedef pcl::PointCloud<PointType> PointCloudType;
+#define e 0.0000000000001f
 
-// Loads points described in file filename into point cloud pointed to by point_cloud
-void load_point_cloud_file(int i, PointCloudType::Ptr point_cloud) {
-  point_cloud->clear();
+void printCudaInfo();
+double* cudaSetUp(int size, double* X);
+int cudaFindNearestNeighbor(int size, double* X, double* Y, double* Z,
+ double x, double y, double z);
+int serialFindNearestNeighbor(int size, double* X, double* Y,
+ double* Z, double x, double y, double z);
+
+
+
+void loadFileWrapper(int i, double *X, double *Y, double *Z) {
   char buff[40];
-  snprintf(buff, sizeof(buff), "../../point_clouds/00000%05d.txt", i);
+  snprintf(buff, sizeof(buff), "../point_clouds/00000%05d.txt", i);
 
   std::string buffStr = buff;
   std::ifstream infile(buffStr.c_str());
   std::cout << "File name: " << buffStr << std::endl;
-
-  float x,y,z,a;
-
-  while (infile >> x >> y >> z >> a) {
-    //std::cout << x << " " << y << " " <<  z << std::endl;
-    point_cloud->push_back(pcl::PointXYZ(x,y,z));
+  double a, b, c ,d;
+  int index = 0;
+  while (infile >> a >> b >> c >> d) {
+    X[index] = a;
+    Y[index] = b;
+    Z[index] = c;
+    index++;
   }
-
-  std::cout << "Point cloud has " << point_cloud->size() << " points" << std::endl;
-}
-
-void writeAnswers(int* answers, int N) {
-  // Set up output file
-  std::ofstream outfile;
-  outfile.open("answers.txt");
-  for (int i = 0; i < N; i++) {
-    // Output answers[i]
-    outfile << answers[i] << " ";
-  }
-  outfile.close();
-}
-
-// Assumes answers[] is big enough to read file
-void readAnswers(int *answers) {
-  std::ifstream infile("answers.txt");
-  float answer;
-  int i = 0;
-  while (infile >> answer) {
-    answers[i] = answer;
-    i++;
-  }
-  // Close file
   infile.close();
+  return;
 }
 
-int main() {
-  PointCloudType::Ptr pc0(new PointCloudType);
-  PointCloudType::Ptr pc1(new PointCloudType);
-  load_point_cloud_file(0, pc0);
-  load_point_cloud_file(1, pc1);
 
-  int k = 1;
-  std::vector<int> indices(k);
-  std::vector<float> distances(k);
+int main(int argc, char** argv) {
+  printCudaInfo();
+  // sum up total runtime for all NUM_ITER iterations and divide by NUM_ITER
+  double cudaTimes = 0.0;
+  double serialTimes = 0.0;
+  double startTime;
+  double endTime;
 
-  // Trial 1: Query points come from pc1
-  // Begin timing
-  // Build kdtree out of pc0
-  double start = CycleTimer::currentSeconds();
-  pcl::KdTreeFLANN<PointType>::Ptr kdtree(new pcl::KdTreeFLANN<PointType>());
-  kdtree->setInputCloud(pc0);
+  // Read file 0
+  int size = 120574;  // hardcoded for file 0
+  double X[size];
+  double Y[size];
+  double Z[size];
+  loadFileWrapper(0, X, Y, Z);
 
-  double end2 = CycleTimer::currentSeconds();
+  // Read file 1
+  int size2 = 120831;
+  double X2[size2];
+  double Y2[size2];
+  double Z2[size2];
+  loadFileWrapper(1, X2, Y2, Z2);
+  
+  // Pointers to arrays on GPU(?) memory
+  startTime = CycleTimer::currentSeconds();
+  double *XC = cudaSetUp(size, X);
+  double *YC = cudaSetUp(size, Y);
+  double *ZC = cudaSetUp(size, Z);
+  endTime = CycleTimer::currentSeconds();
+  std::cout << "Construction: " << endTime-startTime << std::endl;
 
-  int nQueryPoints = pc1->size();
-  int answers[nQueryPoints];
-  readAnswers(answers);
 
-  for (int i = 0; i < nQueryPoints; i++) {
-    kdtree->nearestKSearch(pc1->points[i], k, indices, distances);
-    assert(answers[i] == indices[0]);
-    //answers[i] = indices[0];
+  for (int i=0; i<size2; i++) {
+    startTime = CycleTimer::currentSeconds();
+    int cudaAns = cudaFindNearestNeighbor(size, XC, YC, ZC, X2[i], Y2[i], Z2[i]);
+    endTime = CycleTimer::currentSeconds();
+    cudaTimes = cudaTimes + (endTime-startTime);
+
+    startTime = CycleTimer::currentSeconds();
+    int serialAns = serialFindNearestNeighbor(size, X, Y, Z, X2[i], Y2[i], Z2[i]);
+    endTime = CycleTimer::currentSeconds();
+    serialTimes = serialTimes + (endTime-startTime);
+
+    if (cudaAns!=serialAns) { 
+      // Note: there is some difference in floating point precision when the code is run on CPU/GPU
+      // Accept the answer if it doesn't differ by e
+      double cuda = (X[cudaAns]-X2[i]*X[cudaAns]-X2[i]) + (Y[cudaAns]-Y2[i]*X[cudaAns]-Y2[i]) + (Z[cudaAns]-Z2[i]*Z[cudaAns]-Z2[i]);
+      double serial = (X[serialAns]-X2[i]*X[serialAns]-X2[i]) + (Y[serialAns]-Y2[i]*X[serialAns]-Y2[i]) + (Z[serialAns]-Z2[i]*Z[serialAns]-Z2[i]);
+      double diff = sqrt(cuda)-sqrt(serial);
+      if (diff > e) {
+        std::cout << "CUDA's answer: " << X[cudaAns] << " " << Y[cudaAns] << " " << Z[cudaAns] << std::endl;
+        std::cout << "Serial answer: " << X[serialAns] << " " << Y[serialAns] << " " << Z[serialAns] << std::endl;
+        std::cout << "CUDA: " << cudaAns << std::endl;
+        std::cout << "Serial: " << serialAns << std::endl;
+        return -1;
+      }
+    }
   }
-  double end = CycleTimer::currentSeconds();
-  // End timing
-  printf("Time taken for %d queries from another point cloud = %fs\n", nQueryPoints, end-start);
-  printf("Construction time = %f, queries = %f\n\n", end2-start, end-end2);
 
-  //writeAnswers(answers, nQueryPoints);
-
+  std::cout << "CUDA Time: " << cudaTimes << std::endl;
+  std::cout << "Serial Time: " << serialTimes << std::endl;
+  std::cout << "Speedup: " << serialTimes/cudaTimes << std::endl;
+  return 0;
 }
